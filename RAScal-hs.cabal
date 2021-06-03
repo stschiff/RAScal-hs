@@ -1,37 +1,13 @@
-cabal-version: 1.12
+cabal-version:      2.4
+name:               RAScal-hs
+version:            0.1.0
+author:             Stephan Schiffels
+maintainer:         stephan_schiffels@eva.mpg.de
+extra-source-files: CHANGELOG.md
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
---
--- see: https://github.com/sol/hpack
---
--- hash: 617780ef3f31568f98e7613e51f1a4672c305aaa76770fd3b46b0e1f412fdfc0
-
-name:           RAScal-hs
-version:        0.1.0.0
-description:    A tool to compute Rare allele sharing statistics for ancient DNA datasets
-homepage:       https://github.com/stschiff/RAScal-hs#readme
-bug-reports:    https://github.com/stschiff/RAScal-hs/issues
-author:         Stephan Schiffels
-maintainer:     stephan_schiffels@eva.mpg.de
-copyright:      2021 Stephan Schiffels
-license:        BSD3
-license-file:   LICENSE
-build-type:     Simple
-extra-source-files:
-    README.md
-    ChangeLog.md
-
-source-repository head
-  type: git
-  location: https://github.com/stschiff/RAScal-hs
-
-executable rascal
-  main-is: Main.hs
-  other-modules:
-      Paths_RAScal_hs
-  hs-source-dirs:
-      src
-  build-depends:
-      base >=4.7 && <5
-    , poseidon-hs
-  default-language: Haskell2010
+executable RAScal-hs
+    main-is:          Main.hs
+    build-depends:
+        base ^>=4.14.1.0,
+    hs-source-dirs:   src
+    default-language: Haskell2010
