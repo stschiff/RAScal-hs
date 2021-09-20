@@ -1,1 +1,0 @@
-# RAScal-hs
