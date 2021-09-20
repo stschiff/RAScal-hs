@@ -1,37 +1,35 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import Control.Applicative (some, (<|>))
-import Control.Exception (Exception, throwIO)
-import Control.Monad (forM, forM_)
-import Data.Aeson (FromJSON, parseJSON, withObject, (.:))
-import Data.Aeson.Types (Object, Parser)
-import qualified Data.ByteString as B
-import Data.ByteString.Char8 (pack, splitWith)
-import Data.Char (isSpace)
-import Data.List (intercalate)
-import Data.Text (Text)
-import Data.Version (showVersion)
-import Data.Yaml (decodeEither')
-import qualified Options.Applicative as OP
-import Paths_RAScal_hs (version)
-import Poseidon.Package
-  ( PackageReadOptions (..),
-    defaultPackageReadOptions,
-    readPoseidonPackageCollection,
-  )
-import SequenceFormats.Utils (Chrom (..))
-import System.IO (hPutStrLn, stderr)
-import qualified Text.Parsec as P
-import qualified Text.Parsec.String as PS
-import Text.Read (readEither)
+import           Control.Applicative   (some, (<|>))
+import           Control.Exception     (Exception, throwIO)
+import           Control.Monad         (forM, forM_)
+import           Data.Aeson            (FromJSON, parseJSON, withObject, (.:))
+import           Data.Aeson.Types      (Object, Parser)
+import qualified Data.ByteString       as B
+import           Data.ByteString.Char8 (pack, splitWith)
+import           Data.Char             (isSpace)
+import           Data.List             (intercalate)
+import           Data.Text             (Text)
+import           Data.Version          (showVersion)
+import           Data.Yaml             (decodeEither')
+import qualified Options.Applicative   as OP
+import           Paths_RAScal_hs       (version)
+import           Poseidon.Package      (PackageReadOptions (..),
+                                        defaultPackageReadOptions,
+                                        readPoseidonPackageCollection)
+import           SequenceFormats.Utils (Chrom (..))
+import           System.IO             (hPutStrLn, stderr)
+import qualified Text.Parsec           as P
+import qualified Text.Parsec.String    as PS
+import           Text.Read             (readEither)
 
 data CLIoptions = CLIoptions
-  { _optBaseDirs :: [FilePath],
+  { _optBaseDirs      :: [FilePath],
     _optJackknifeMode :: JackknifeMode,
     _optExcludeChroms :: [Chrom],
-    _optPopConfig :: PopConfig,
-    _optMinCutoff :: Int,
-    _optMaxCutoff :: Int
+    _optPopConfig     :: PopConfig,
+    _optMinCutoff     :: Int,
+    _optMaxCutoff     :: Int
   }
   deriving (Show)
 
@@ -60,10 +58,10 @@ data EntitySpec
 
 instance Show EntitySpec where
   show (EntitySpecGroup n) = n
-  show (EntitySpecInd n) = "<" ++ n ++ ">"
+  show (EntitySpecInd n)   = "<" ++ n ++ ">"
 
 data PopConfigYamlStruct = PopConfigYamlStruct
-  { popConfigLefts :: [PopDef],
+  { popConfigLefts  :: [PopDef],
     popConfigRights :: [PopDef]
   }
 
@@ -79,7 +77,7 @@ instance FromJSON PopConfigYamlStruct where
         forM popDefStrings $ \popDefString -> do
           case parsePopDef popDefString of
             Left err -> fail err
-            Right p -> return p
+            Right p  -> return p
 
 data RascalException = PopConfigYamlException FilePath String
   deriving (Show)
@@ -90,37 +88,37 @@ instance Exception RascalException
 -- type GenomPos = (Chrom, Int)
 main :: IO ()
 main = do
-  cliOpts <- OP.customExecParser p optParserInfo
-  let pacReadOpts = defaultPackageReadOptions {_readOptStopOnDuplicates = True, _readOptIgnoreChecksums = True}
-  allPackages <- readPoseidonPackageCollection pacReadOpts (_optBaseDirs cliOpts)
-  hPutStrLn stderr ("Loaded " ++ show (length allPackages) ++ " packages")
-  (popLefts, popRights) <- case _optPopConfig cliOpts of
-    PopConfigDirect pl pr -> return (pl, pr)
-    PopConfigFile f -> readPopConfig f
-  hPutStrLn stderr "Configuration:\npopLefts: "
-  forM_ popLefts $ \p -> do
-    hPutStrLn stderr $ "- " ++ renderPopDef p
-  hPutStrLn stderr $ "popRights: "
-  forM_ popRights $ \p -> do
-    hPutStrLn stderr $ "- " ++ renderPopDef p
+    cliOpts <- OP.customExecParser p optParserInfo
+    let pacReadOpts = defaultPackageReadOptions {_readOptStopOnDuplicates = True, _readOptIgnoreChecksums = True}
+    allPackages <- readPoseidonPackageCollection pacReadOpts (_optBaseDirs cliOpts)
+    hPutStrLn stderr ("Loaded " ++ show (length allPackages) ++ " packages")
+    (popLefts, popRights) <- case _optPopConfig cliOpts of
+        PopConfigDirect pl pr -> return (pl, pr)
+        PopConfigFile f       -> readPopConfig f
+    hPutStrLn stderr "Configuration:\npopLefts: "
+    forM_ popLefts $ \p -> do
+        hPutStrLn stderr $ "- " ++ renderPopDef p
+    hPutStrLn stderr $ "popRights: "
+    forM_ popRights $ \p -> do
+        hPutStrLn stderr $ "- " ++ renderPopDef p
   where
     p = OP.prefs OP.showHelpOnEmpty
     optParserInfo =
-      OP.info
-        (OP.helper <*> versionOption <*> optParser)
-        ( OP.briefDesc
-            <> OP.progDesc "rascal computes RAS statistics for Poseidon-packaged genotype data"
-        )
+        OP.info
+            (OP.helper <*> versionOption <*> optParser)
+            ( OP.briefDesc
+                <> OP.progDesc "rascal computes RAS statistics for Poseidon-packaged genotype data"
+            )
     versionOption = OP.infoOption (showVersion version) (OP.long "version" <> OP.help "Show version")
 
 optParser :: OP.Parser CLIoptions
 optParser =
-  CLIoptions <$> parseBasePaths
-    <*> parseJackknife
-    <*> parseExcludeChroms
-    <*> parsePopConfig
-    <*> parseMinCutoff
-    <*> parseMaxCutoff
+    CLIoptions <$> parseBasePaths
+        <*> parseJackknife
+        <*> parseExcludeChroms
+        <*> parsePopConfig
+        <*> parseMinCutoff
+        <*> parseMaxCutoff
 
 parseBasePaths :: OP.Parser [FilePath]
 parseBasePaths =
@@ -150,7 +148,7 @@ parseJackknife =
       numStr ->
         let num = readEither numStr
          in case num of
-              Left e -> Left e
+              Left e  -> Left e
               Right n -> Right (JackknifePerN n)
 
 parseExcludeChroms :: OP.Parser [Chrom]
@@ -215,7 +213,7 @@ parseRightPop =
 
 parsePopDef :: String -> Either String PopDef
 parsePopDef s = case P.runParser popDefParser () "" s of
-  Left p -> Left (show p)
+  Left p  -> Left (show p)
   Right x -> Right x
 
 popDefParser :: PS.Parser PopDef
@@ -253,13 +251,13 @@ readPopConfig fn = do
   bs <- B.readFile fn
   PopConfigYamlStruct pl pr <- case decodeEither' bs of
     Left err -> throwIO $ PopConfigYamlException fn (show err)
-    Right x -> return x
+    Right x  -> return x
   return (pl, pr)
 
 renderPopDef :: PopDef -> String
 renderPopDef = intercalate ", " . map renderComponent
   where
-    renderComponent (PopComponentAdd c) = "including " ++ show c
+    renderComponent (PopComponentAdd c)      = "including " ++ show c
     renderComponent (PopComponentSubtract c) = "excluding " ++ show c
 
 -- data BlockData = BlockData
