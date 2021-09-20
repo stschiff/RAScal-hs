@@ -98,7 +98,7 @@ main = do
     hPutStrLn stderr "Configuration:\npopLefts: "
     forM_ popLefts $ \p -> do
         hPutStrLn stderr $ "- " ++ renderPopDef p
-    hPutStrLn stderr $ "popRights: "
+    hPutStrLn stderr "popRights: "
     forM_ popRights $ \p -> do
         hPutStrLn stderr $ "- " ++ renderPopDef p
   where
