@@ -1,171 +1,225 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import           Control.Applicative   (some, (<|>))
-import           Control.Exception     (Exception, throwIO)
-import           Control.Monad         (forM)
-import           Data.Aeson            (FromJSON, parseJSON, withObject, (.:))
-import           Data.Aeson.Types      (Parser, Value)
-import qualified Data.ByteString       as B
-import           Data.ByteString.Char8 (pack, splitWith)
-import           Data.Char             (isSpace)
-import           Data.Text             (Text)
-import           Data.Version          (showVersion)
-import           Data.Yaml             (decodeEither')
-import qualified Options.Applicative   as OP
-import           Paths_RAScal_hs       (version)
-import           Poseidon.Package      (PackageReadOptions (..),
-                                        defaultPackageReadOptions,
-                                        readPoseidonPackageCollection)
-import           SequenceFormats.Utils (Chrom (..))
-import           System.IO             (hPutStrLn, stderr)
-import qualified Text.Parsec           as P
-import qualified Text.Parsec.String    as PS
-import           Text.Read             (readEither)
+import Control.Applicative (some, (<|>))
+import Control.Exception (Exception, throwIO)
+import Control.Monad (forM, forM_)
+import Data.Aeson (FromJSON, parseJSON, withObject, (.:))
+import Data.Aeson.Types (Object, Parser)
+import qualified Data.ByteString as B
+import Data.ByteString.Char8 (pack, splitWith)
+import Data.Char (isSpace)
+import Data.List (intercalate)
+import Data.Text (Text)
+import Data.Version (showVersion)
+import Data.Yaml (decodeEither')
+import qualified Options.Applicative as OP
+import Paths_RAScal_hs (version)
+import Poseidon.Package
+  ( PackageReadOptions (..),
+    defaultPackageReadOptions,
+    readPoseidonPackageCollection,
+  )
+import SequenceFormats.Utils (Chrom (..))
+import System.IO (hPutStrLn, stderr)
+import qualified Text.Parsec as P
+import qualified Text.Parsec.String as PS
+import Text.Read (readEither)
 
 data CLIoptions = CLIoptions
-    { _optBaseDirs      :: [FilePath]
-    , _optJackknifeMode :: JackknifeMode
-    , _optExcludeChroms :: [Chrom]
-    , _optPopConfig     :: PopConfig
-    , _optMinCutoff     :: Int
-    , _optMaxCutoff     :: Int
-    }
-    deriving (Show)
+  { _optBaseDirs :: [FilePath],
+    _optJackknifeMode :: JackknifeMode,
+    _optExcludeChroms :: [Chrom],
+    _optPopConfig :: PopConfig,
+    _optMinCutoff :: Int,
+    _optMaxCutoff :: Int
+  }
+  deriving (Show)
 
-data JackknifeMode = JackknifePerN Int
-    | JackknifePerChromosome
-    deriving (Show)
+data JackknifeMode
+  = JackknifePerN Int
+  | JackknifePerChromosome
+  deriving (Show)
 
-data PopConfig = PopConfigDirect [PopDef] [PopDef]
-    | PopConfigFile FilePath
-    deriving (Show)
+data PopConfig
+  = PopConfigDirect [PopDef] [PopDef]
+  | PopConfigFile FilePath
+  deriving (Show)
 
 type PopDef = [PopComponent]
 
-data PopComponent = PopComponentAdd EntitySpec
-    | PopComponentSubtract EntitySpec
-    deriving (Show)
+data PopComponent
+  = PopComponentAdd EntitySpec
+  | PopComponentSubtract EntitySpec
+  deriving (Show)
 
 -- | A datatype to represent a group or an individual
-data EntitySpec = EntitySpecGroup String
-    | EntitySpecInd String
-    deriving (Eq)
+data EntitySpec
+  = EntitySpecGroup String
+  | EntitySpecInd String
+  deriving (Eq)
 
 instance Show EntitySpec where
-    show (EntitySpecGroup n) = n
-    show (EntitySpecInd   n) = "<" ++ n ++ ">"
+  show (EntitySpecGroup n) = n
+  show (EntitySpecInd n) = "<" ++ n ++ ">"
 
 data PopConfigYamlStruct = PopConfigYamlStruct
-    { popConfigLefts  :: [PopDef]
-    , popConfigRights :: [PopDef]
-    }
+  { popConfigLefts :: [PopDef],
+    popConfigRights :: [PopDef]
+  }
 
 instance FromJSON PopConfigYamlStruct where
-    parseJSON = withObject "PopConfigYamlStruct" $ \v -> PopConfigYamlStruct
-        <$> parsePopDefsFromJSON v "popLefts"
-        <*> parsePopDefsFromJSON v "popRights"
-      where
-        parsePopDefsFromJSON :: Value -> Text -> Parser [PopDef]
-        parsePopDefsFromJSON v label = do
-            popDefStrings <- v .: label
-            forM popDefStrings $ \popDefString -> do
-                case parsePopDef popDefString of
-                    Left err -> fail err
-                    Right p  -> return p
+  parseJSON = withObject "PopConfigYamlStruct" $ \v ->
+    PopConfigYamlStruct
+      <$> parsePopDefsFromJSON v "popLefts"
+      <*> parsePopDefsFromJSON v "popRights"
+    where
+      parsePopDefsFromJSON :: Object -> Text -> Parser [PopDef]
+      parsePopDefsFromJSON v label = do
+        popDefStrings <- v .: label
+        forM popDefStrings $ \popDefString -> do
+          case parsePopDef popDefString of
+            Left err -> fail err
+            Right p -> return p
 
 data RascalException = PopConfigYamlException FilePath String
-    deriving (Show)
+  deriving (Show)
 
 instance Exception RascalException
 
 -- | A helper type to represent a genomic position.
 -- type GenomPos = (Chrom, Int)
-
 main :: IO ()
 main = do
-    cliOpts <- OP.customExecParser p optParserInfo
-    let pacReadOpts = defaultPackageReadOptions {_readOptStopOnDuplicates = True, _readOptIgnoreChecksums = True}
-    allPackages <- readPoseidonPackageCollection pacReadOpts (_optBaseDirs cliOpts)
-    hPutStrLn stderr ("Loaded " ++ show (length allPackages) ++ " packages")
-    (popLefts, popRights) <- case _optPopConfig cliOpts of
-        PopConfigDirect pl pr -> return (pl, pr)
-        PopConfigFile f       -> readPopConfig f
-    return ()
+  cliOpts <- OP.customExecParser p optParserInfo
+  let pacReadOpts = defaultPackageReadOptions {_readOptStopOnDuplicates = True, _readOptIgnoreChecksums = True}
+  allPackages <- readPoseidonPackageCollection pacReadOpts (_optBaseDirs cliOpts)
+  hPutStrLn stderr ("Loaded " ++ show (length allPackages) ++ " packages")
+  (popLefts, popRights) <- case _optPopConfig cliOpts of
+    PopConfigDirect pl pr -> return (pl, pr)
+    PopConfigFile f -> readPopConfig f
+  hPutStrLn stderr "Configuration:\npopLefts: "
+  forM_ popLefts $ \p -> do
+    hPutStrLn stderr $ "- " ++ renderPopDef p
+  hPutStrLn stderr $ "popRights: "
+  forM_ popRights $ \p -> do
+    hPutStrLn stderr $ "- " ++ renderPopDef p
   where
     p = OP.prefs OP.showHelpOnEmpty
-    optParserInfo = OP.info (OP.helper <*> versionOption <*> optParser) (
-        OP.briefDesc <>
-        OP.progDesc "rascal computes RAS statistics for Poseidon-packaged genotype data")
+    optParserInfo =
+      OP.info
+        (OP.helper <*> versionOption <*> optParser)
+        ( OP.briefDesc
+            <> OP.progDesc "rascal computes RAS statistics for Poseidon-packaged genotype data"
+        )
     versionOption = OP.infoOption (showVersion version) (OP.long "version" <> OP.help "Show version")
 
 optParser :: OP.Parser CLIoptions
-optParser = CLIoptions <$> parseBasePaths
-                       <*> parseJackknife
-                       <*> parseExcludeChroms
-                       <*> parsePopConfig
-                       <*> parseMinCutoff
-                       <*> parseMaxCutoff
+optParser =
+  CLIoptions <$> parseBasePaths
+    <*> parseJackknife
+    <*> parseExcludeChroms
+    <*> parsePopConfig
+    <*> parseMinCutoff
+    <*> parseMaxCutoff
 
 parseBasePaths :: OP.Parser [FilePath]
-parseBasePaths = OP.some (OP.strOption (OP.long "baseDir" <>
-    OP.short 'd' <>
-    OP.metavar "DIR" <>
-    OP.help "a base directory to search for Poseidon Packages (could be a Poseidon repository)"))
+parseBasePaths =
+  OP.some
+    ( OP.strOption
+        ( OP.long "baseDir"
+            <> OP.short 'd'
+            <> OP.metavar "DIR"
+            <> OP.help "a base directory to search for Poseidon Packages (could be a Poseidon repository)"
+        )
+    )
 
 parseJackknife :: OP.Parser JackknifeMode
-parseJackknife = OP.option (OP.eitherReader readJackknifeString) (OP.long "jackknife" <> OP.short 'j' <>
-    OP.help "Jackknife setting. If given an integer number, this defines the block size in SNPs. \
-        \Set to \"CHR\" if you want jackknife blocks defined as entire chromosomes. The default is at 5000 SNPs" <> OP.value JackknifePerChromosome)
+parseJackknife =
+  OP.option
+    (OP.eitherReader readJackknifeString)
+    ( OP.long "jackknife" <> OP.short 'j'
+        <> OP.help
+          "Jackknife setting. If given an integer number, this defines the block size in SNPs. \
+          \Set to \"CHR\" if you want jackknife blocks defined as entire chromosomes. The default is at 5000 SNPs"
+        <> OP.value JackknifePerChromosome
+    )
   where
     readJackknifeString :: String -> Either String JackknifeMode
     readJackknifeString s = case s of
-        "CHR"  -> Right JackknifePerChromosome
-        numStr -> let num = readEither numStr
-                  in  case num of
-                        Left e  -> Left e
-                        Right n -> Right (JackknifePerN n)
+      "CHR" -> Right JackknifePerChromosome
+      numStr ->
+        let num = readEither numStr
+         in case num of
+              Left e -> Left e
+              Right n -> Right (JackknifePerN n)
 
 parseExcludeChroms :: OP.Parser [Chrom]
-parseExcludeChroms = OP.option (map Chrom . splitWith (==',') . pack <$> OP.str)
-    (OP.long "excludeChroms" <> OP.short 'e' <>
-    OP.help "List of chromosome names to exclude chromosomes, given as comma-separated \
-        \list. Defaults to X, Y, MT, chrX, chrY, chrMT, 23,24,90" <> OP.value [Chrom "X", Chrom "Y", Chrom "MT",
-        Chrom "chrX", Chrom "chrY", Chrom "chrMT", Chrom "23", Chrom "24", Chrom "90"])
+parseExcludeChroms =
+  OP.option
+    (map Chrom . splitWith (== ',') . pack <$> OP.str)
+    ( OP.long "excludeChroms" <> OP.short 'e'
+        <> OP.help
+          "List of chromosome names to exclude chromosomes, given as comma-separated \
+          \list. Defaults to X, Y, MT, chrX, chrY, chrMT, 23,24,90"
+        <> OP.value
+          [ Chrom "X",
+            Chrom "Y",
+            Chrom "MT",
+            Chrom "chrX",
+            Chrom "chrY",
+            Chrom "chrMT",
+            Chrom "23",
+            Chrom "24",
+            Chrom "90"
+          ]
+    )
 
 parsePopConfig :: OP.Parser PopConfig
 parsePopConfig = parsePopConfigDirect <|> parsePopConfigFile
   where
     parsePopConfigDirect = PopConfigDirect <$> some parseLeftPop <*> some parseRightPop
-    parsePopConfigFile = PopConfigFile <$> OP.option OP.str (OP.long "popConfigFile" <>
-        OP.help "a file containing the population configuration")
+    parsePopConfigFile =
+      PopConfigFile
+        <$> OP.option
+          OP.str
+          ( OP.long "popConfigFile"
+              <> OP.help "a file containing the population configuration"
+          )
 
 parseLeftPop :: OP.Parser PopDef
-parseLeftPop = OP.option (OP.eitherReader parsePopDef) (OP.long "popLeft" <> OP.short 'l' <>
-    OP.help "Define a left population. can be given multiple times. A single population can be defined in their simplest form my just entering a group label, such as \"French\". \
-    \A single individual can be entered within angular brackets, such as \"<I123>\". More complex group definitions can \
-    \involve multiple groups or individuals that are added or subtracted, using a comma-separated list of entities \
-    \(groups or individuals), and using the \"!\" symbol to mark an entity to exclude from the definition. \
-    \Example: \"French,!<I1234>,!<I1235>,Spanish\". Here, French is added as group, then two individuals are removed, \
-    \and then Spanish is added. These operations are always executed in the order they appear in the definition. \
-    \Note it is also possible to define completely new groups by adding up specific \
-    \individuals, such as \"<I123>,<I124>,<I125>\". Note: In bash or zsh, you need to surround group definitions \
-    \using single quotes!")
+parseLeftPop =
+  OP.option
+    (OP.eitherReader parsePopDef)
+    ( OP.long "popLeft" <> OP.short 'l'
+        <> OP.help
+          "Define a left population. can be given multiple times. A single population can be defined in their simplest form my just entering a group label, such as \"French\". \
+          \A single individual can be entered within angular brackets, such as \"<I123>\". More complex group definitions can \
+          \involve multiple groups or individuals that are added or subtracted, using a comma-separated list of entities \
+          \(groups or individuals), and using the \"!\" symbol to mark an entity to exclude from the definition. \
+          \Example: \"French,!<I1234>,!<I1235>,Spanish\". Here, French is added as group, then two individuals are removed, \
+          \and then Spanish is added. These operations are always executed in the order they appear in the definition. \
+          \Note it is also possible to define completely new groups by adding up specific \
+          \individuals, such as \"<I123>,<I124>,<I125>\". Note: In bash or zsh, you need to surround group definitions \
+          \using single quotes!"
+    )
 
 parseRightPop :: OP.Parser PopDef
-parseRightPop = OP.option (OP.eitherReader parsePopDef) (OP.long "popRight" <> OP.short 'r' <>
-    OP.help "Define a right population. can be given multiple times. The same rules for complex compositions \
-    \apply as with --popLeft, see above.")
-
-popDefHelpStr :: String
-popDefHelpStr = ""
+parseRightPop =
+  OP.option
+    (OP.eitherReader parsePopDef)
+    ( OP.long "popRight" <> OP.short 'r'
+        <> OP.help
+          "Define a right population. can be given multiple times. The same rules for complex compositions \
+          \apply as with --popLeft, see above."
+    )
 
 parsePopDef :: String -> Either String PopDef
 parsePopDef s = case P.runParser popDefParser () "" s of
-    Left p  -> Left (show p)
-    Right x -> Right x
+  Left p -> Left (show p)
+  Right x -> Right x
 
 popDefParser :: PS.Parser PopDef
-popDefParser = (componentParserSubtract <|> componentParserAdd) `P.sepBy` (P.char ',')
+popDefParser = (componentParserSubtract <|> componentParserAdd) `P.sepBy` P.char ','
   where
     componentParserSubtract = P.char '!' *> (PopComponentSubtract <$> componentEntityParser)
     componentParserAdd = PopComponentAdd <$> componentEntityParser
@@ -175,22 +229,38 @@ popDefParser = (componentParserSubtract <|> componentParserAdd) `P.sepBy` (P.cha
     parseName = P.many1 (P.satisfy (\c -> not (isSpace c || c `elem` [',', '<', '>'])))
 
 parseMinCutoff :: OP.Parser Int
-parseMinCutoff = OP.option OP.auto (OP.long "minCutoff" <>
-    OP.help "define a minimal allele-count cutoff for the RAS statistics. " <>
-    OP.value 0 <> OP.showDefault)
+parseMinCutoff =
+  OP.option
+    OP.auto
+    ( OP.long "minCutoff"
+        <> OP.help "define a minimal allele-count cutoff for the RAS statistics. "
+        <> OP.value 0
+        <> OP.showDefault
+    )
 
 parseMaxCutoff :: OP.Parser Int
-parseMaxCutoff = OP.option OP.auto (OP.long "maxCutoff" <>
-    OP.help "define a maximal allele-count cutoff for the RAS statistics. " <>
-    OP.value 10 <> OP.showDefault)
+parseMaxCutoff =
+  OP.option
+    OP.auto
+    ( OP.long "maxCutoff"
+        <> OP.help "define a maximal allele-count cutoff for the RAS statistics. "
+        <> OP.value 10
+        <> OP.showDefault
+    )
 
 readPopConfig :: FilePath -> IO ([PopDef], [PopDef])
 readPopConfig fn = do
-    bs <- B.readFile fn
-    PopConfigYamlStruct pl pr <- case decodeEither' bs of
-        Left err -> throwIO $ PopConfigYamlException fn (show err)
-        Right x  -> return x
-    return (pl, pr)
+  bs <- B.readFile fn
+  PopConfigYamlStruct pl pr <- case decodeEither' bs of
+    Left err -> throwIO $ PopConfigYamlException fn (show err)
+    Right x -> return x
+  return (pl, pr)
+
+renderPopDef :: PopDef -> String
+renderPopDef = intercalate ", " . map renderComponent
+  where
+    renderComponent (PopComponentAdd c) = "including " ++ show c
+    renderComponent (PopComponentSubtract c) = "excluding " ++ show c
 
 -- data BlockData = BlockData
 --     { blockStartPos  :: GenomPos

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7f12aaf3df3d2908f2c33d49e22061faaa88b32b8dc429d3ebad78519146904d
+-- hash: a8e704804bf2511cb3676a07424c3a79acdf0cf6d2f73dba70edd0f20d44f7c6
 
 name:           RAScal-hs
 version:        0.1.0.0
@@ -15,7 +15,6 @@ author:         Stephan Schiffels
 maintainer:     stephan_schiffels@eva.mpg.de
 copyright:      2021 Stephan Schiffels
 license:        BSD3
-license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md

@@ -1,0 +1,1 @@
+RAScal-hs is a tool to compute rare allele sharing statistics from genotype data.
