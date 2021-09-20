@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e1a9ea3ad820b56c1a0536c1dbab05260594109533453c598a4cfbbf78fce559
+-- hash: 7f12aaf3df3d2908f2c33d49e22061faaa88b32b8dc429d3ebad78519146904d
 
 name:           RAScal-hs
 version:        0.1.0.0
@@ -32,7 +32,13 @@ executable rascal
   hs-source-dirs:
       src
   build-depends:
-      base >=4.7 && <5
+      aeson
+    , base >=4.7 && <5
+    , bytestring
     , optparse-applicative
+    , parsec
     , poseidon-hs
+    , sequence-formats
+    , text
+    , yaml
   default-language: Haskell2010

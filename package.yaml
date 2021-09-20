@@ -23,4 +23,9 @@ executables:
     dependencies:
     - poseidon-hs
     - optparse-applicative
-
+    - parsec
+    - sequence-formats
+    - bytestring
+    - aeson
+    - yaml
+    - text
